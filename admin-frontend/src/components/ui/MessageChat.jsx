@@ -49,56 +49,34 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
   }, [ticketId]);
 
   const connectToTicketRoom = useCallback(() => {
-    console.log('🔥 ADMIN: connectToTicketRoom called');
-    console.log('🔥 ADMIN: User role:', user?.role, 'User ID:', user?.id);
-    console.log('🔥 ADMIN: Ticket ID:', ticketId, 'Token exists:', !!token);
     
     // Prevent rapid reconnection attempts (cooldown period)
     const now = Date.now();
     if (now - lastConnectionAttempt.current < 1000) {
-      console.log('🔥 ADMIN: Connection attempt too soon, waiting...');
       return;
     }
     lastConnectionAttempt.current = now;
 
     // Admins cannot connect to WebSocket - they have read-only access via HTTP
     if (user?.role === 'admin') {
-      console.log('🔥 ADMIN: Admin users cannot join WebSocket ticket rooms - read-only access only');
       return;
     }
 
     if (!ticketId || !user || !token) {
-      console.log('🔥 ADMIN: Missing requirements for WebSocket connection:', { ticketId, user: !!user, token: !!token });
       return;
     }
 
     // Check if user has access to this ticket before attempting connection
     if (ticket) {
-      console.log('🔥 ADMIN: Checking access - user.role:', user.role, 'user.id:', user.id);
-      console.log('🔥 ADMIN: Ticket - user:', ticket.user, 'agent:', ticket.agent);
-      console.log('🔥 ADMIN: Ticket - user_id (old):', ticket.user_id, 'agent_id (old):', ticket.agent_id);
-      console.log('🔥 ADMIN: Ticket - user.id:', ticket.user?.id, 'agent.id:', ticket.agent?.id);
-      
       const ticketUserId = ticket.user?.id;
       const ticketAgentId = ticket.agent?.id;
-      
-      console.log('🔥 ADMIN: Type check - user.id type:', typeof user.id, 'ticketAgentId type:', typeof ticketAgentId);
-      console.log('🔥 ADMIN: Strict equality check: user.id === ticketAgentId:', user.id === ticketAgentId);
-      console.log('🔥 ADMIN: Loose equality check: user.id == ticketAgentId:', user.id == ticketAgentId);
       
       const isTicketCreator = user.role === 'user' && ticketUserId === user.id;
       const isAssignedAgent = user.role === 'agent' && ticketAgentId === user.id;
       const hasAccess = isTicketCreator || isAssignedAgent;
       
-      console.log('🔥 ADMIN: isTicketCreator:', isTicketCreator);
-      console.log('🔥 ADMIN: isAssignedAgent:', isAssignedAgent);
-      console.log('🔥 ADMIN: Final hasAccess:', hasAccess);
-      
       if (!hasAccess) {
-        console.log('🔥 ADMIN: User does not have access to this ticket for messaging');
         return;
-      } else {
-        console.log('🔥 ADMIN: Access granted - proceeding with WebSocket connection');
       }
     }
 
@@ -129,8 +107,6 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
-        console.log(`🔥 ADMIN: Successfully connected to ticket room ${ticketId}`);
-        console.log('🔥 ADMIN: WebSocket readyState:', wsRef.current?.readyState);
         setIsConnected(true);
         setConnectionAttempts(0);
         toast.success('Connected to real-time messaging', { duration: 2000 });
@@ -139,8 +115,6 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
       wsRef.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('🔥 ADMIN: Received message in ticket room:', data);
-          console.log('🔥 ADMIN: Current messages length before update:', messages.length);
           
           if (data.type === 'message') {
             const newMsg = {
@@ -157,11 +131,9 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
             };
             
             setMessages(prevMessages => {
-              console.log('🔥 ADMIN: Processing message, current state has', prevMessages.length, 'messages');
               // Check if message already exists to prevent duplicates
               const exists = prevMessages.some(msg => msg.id === newMsg.id);
               if (exists) {
-                console.log('🔥 ADMIN: Message already exists, skipping duplicate');
                 return prevMessages;
               }
               
@@ -173,16 +145,12 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
               );
               
               if (optimisticIndex !== -1) {
-                console.log('🔥 ADMIN: Replacing optimistic message with real message');
                 const updatedMessages = [...prevMessages];
                 updatedMessages[optimisticIndex] = newMsg;
                 return updatedMessages;
               }
               
-              console.log('🔥 ADMIN: Adding new real-time message to state');
-              const newState = [...prevMessages, newMsg];
-              console.log('🔥 ADMIN: New state will have', newState.length, 'messages');
-              return newState;
+              return [...prevMessages, newMsg];
             });
           } else if (data.type === 'user_joined') {
             console.log(`${data.user_name} joined the ticket room`);
@@ -259,9 +227,7 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
   const loadInitialMessages = useCallback(async () => {
     try {
       setLoadingMessages(true);
-      console.log('Loading initial messages for ticket:', ticketId);
       const allMessages = await messageService.getMessages(ticketId);
-      console.log('Loaded messages:', allMessages);
       setMessages(allMessages);
       setMessagesLoaded(true);
     } catch (error) {
@@ -282,18 +248,8 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
 
   // Connect to ticket room when ticket is available (only for non-admin users)
   useEffect(() => {
-    console.log('🔥 Admin MessageChat useEffect - checking connection conditions:');
-    console.log('🔥 ticketId:', ticketId);
-    console.log('🔥 user:', user);
-    console.log('🔥 user.role:', user?.role);
-    console.log('🔥 token exists:', !!token);
-    console.log('🔥 ticket:', ticket);
-    console.log('🔥 ticket.user_id:', ticket?.user_id, 'ticket.agent_id:', ticket?.agent_id);
-    console.log('🔥 user.role !== "admin":', user?.role !== 'admin');
-    
     // Wait for ticket data to be loaded before attempting connection
     if (ticketId && user && token && ticket && user.role !== 'admin') {
-      console.log('🔥 All conditions met - connecting to WebSocket');
       // Add a small delay to prevent immediate connection issues
       const connectionTimeout = setTimeout(() => {
         connectToTicketRoom();
@@ -303,20 +259,14 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
         clearTimeout(connectionTimeout);
         disconnectFromTicketRoom();
       };
-    } else {
-      console.log('🔥 Connection conditions NOT met - staying disconnected');
-      if (user?.role === 'admin') {
-        console.log('🔥 Admin role detected - WebSocket connection blocked (read-only access only)');
-      }
-      if (!ticket) {
-        console.log('🔥 Ticket data not loaded yet - waiting...');
-      }
     }
 
     return () => {
       disconnectFromTicketRoom();
     };
   }, [ticketId, user?.id, user?.role, token, ticket?.user_id, ticket?.agent_id]); // Wait for ticket data
+
+
 
   useEffect(() => {
     // Auto-scroll to bottom when new messages arrive
@@ -359,7 +309,6 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
       if (user?.role === 'agent' || user?.role === 'user') {
         // Try WebSocket first if connected
         if (wsRef.current?.readyState === WebSocket.OPEN) {
-          console.log('Sending message via WebSocket (admin):', { content: messageContent });
           wsRef.current.send(JSON.stringify({
             content: messageContent
           }));
@@ -377,13 +326,10 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
             timestamp: new Date().toISOString(),
             created_at: new Date().toISOString()
           };
-          
-          console.log('Adding optimistic message (admin):', optimisticMsg);
           setMessages(prevMessages => [...prevMessages, optimisticMsg]);
           setNewMessage('');
         } else {
           // Fallback to HTTP if WebSocket is not connected
-          console.log('WebSocket not connected, using HTTP fallback');
           const response = await messageService.sendMessage({
             content: messageContent,
             ticket_id: ticketId

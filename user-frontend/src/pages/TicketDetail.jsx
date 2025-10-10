@@ -34,6 +34,8 @@ const TicketDetail = () => {
     fetchTicketAndMessages();
   }, [id]);
 
+
+
   useEffect(() => {
     // Connect WebSocket for real-time messaging
     if (id && user?.id) {
@@ -99,16 +101,12 @@ const TicketDetail = () => {
       wsRef.current = new WebSocket(wsUrl);
 
     wsRef.current.onopen = () => {
-      console.log('🔥 USER: WebSocket connected to:', wsUrl);
-      console.log('🔥 USER: WebSocket readyState:', wsRef.current?.readyState);
       setWsConnected(true);
     };
 
     wsRef.current.onmessage = (event) => {
       try {
         const messageData = JSON.parse(event.data);
-        console.log('🔥 USER: Received WebSocket message:', messageData);
-        console.log('🔥 USER: Current messages length before update:', messages.length);
         
         if (messageData.type === 'message') {
           // Add the new message to the messages list
@@ -126,11 +124,9 @@ const TicketDetail = () => {
           };
           
           setMessages(prev => {
-            console.log('🔥 USER: Processing message, current state has', prev.length, 'messages');
             // Check if message already exists to avoid duplicates
             const exists = prev.find(msg => msg.id === newMsg.id);
             if (exists) {
-              console.log('🔥 USER: Message already exists, skipping duplicate');
               return prev;
             }
             
@@ -142,16 +138,12 @@ const TicketDetail = () => {
             );
             
             if (optimisticIndex !== -1) {
-              console.log('🔥 USER: Replacing optimistic message with real message');
               const updatedMessages = [...prev];
               updatedMessages[optimisticIndex] = newMsg;
               return updatedMessages;
             }
             
-            console.log('🔥 USER: Adding new real-time message to state');
-            const newState = [...prev, newMsg];
-            console.log('🔥 USER: New state will have', newState.length, 'messages');
-            return newState;
+            return [...prev, newMsg];
           });
         } else if (messageData.type === 'user_joined') {
           console.log(`${messageData.user_name} joined the chat`);

@@ -174,14 +174,15 @@ async def ticket_room_websocket(websocket: WebSocket, ticket_id: int, db: Sessio
                 new_message = message_ops.create_message(db, message_create)
                 
                 # Broadcast message to all users in this ticket room
+                # new_message is a dictionary, not an object
                 broadcast_message = {
                     "type": "message",
-                    "id": new_message.id,
-                    "content": new_message.content,
+                    "id": new_message["id"],
+                    "content": new_message["content"],
                     "sender_id": current_user.id,
                     "sender_name": current_user.name or current_user.email,
                     "sender_role": current_user.role.value,
-                    "timestamp": new_message.created_at.isoformat(),
+                    "timestamp": new_message["timestamp"].isoformat() if hasattr(new_message["timestamp"], 'isoformat') else str(new_message["timestamp"]),
                     "ticket_id": ticket_id
                 }
                 
