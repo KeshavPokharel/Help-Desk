@@ -390,7 +390,12 @@ const TicketDetail = () => {
 
       {/* Messages Section - Only visible to users and agents, not admins */}
       {user?.role !== 'admin' && (
-        <MessageChat ticketId={id} ticket={ticket} />
+        <>
+          {console.log('🔥 TICKETDETAIL: Rendering MessageChat with ticket data:', ticket)}
+          {console.log('🔥 TICKETDETAIL: user_id (old):', ticket?.user_id, 'agent_id (old):', ticket?.agent_id)}
+          {console.log('🔥 TICKETDETAIL: user.id:', ticket?.user?.id, 'agent.id:', ticket?.agent?.id)}
+          <MessageChat ticketId={id} ticket={ticket} />
+        </>
       )}
 
       {/* Admin Information about Private Sections */}
