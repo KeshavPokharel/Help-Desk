@@ -1,6 +1,6 @@
 import React from 'react';
 import { Menu, Search } from 'lucide-react';
-import NotificationBell from '../NotificationBell';
+import NotificationBell from '../ui/NotificationBell';
 
 const Header = ({ onMenuClick, title = 'Dashboard' }) => {
   return (

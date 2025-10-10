@@ -1,159 +1,124 @@
-import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { toast } from 'react-hot-toast';
+import useWebSocket, { ReadyState } from 'react-use-websocket';
 
 const WebSocketContext = createContext();
 
-export const useWebSocket = () => {
+export const useCustomWebSocket = () => {
   const context = useContext(WebSocketContext);
   if (!context) {
-    throw new Error('useWebSocket must be used within a WebSocketProvider');
+    throw new Error('useCustomWebSocket must be used within a WebSocketProvider');
   }
   return context;
 };
 
 export const WebSocketProvider = ({ children }) => {
   const { user, token } = useAuth();
-  const wsRef = useRef(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [connectionAttempts, setConnectionAttempts] = useState(0);
-  const messageListeners = useRef(new Set());
-  const reconnectTimeoutRef = useRef(null);
+  const [messageListeners, setMessageListeners] = useState(new Set());
+  const [hasShownInitialToast, setHasShownInitialToast] = useState(false);
 
-  const MAX_RECONNECT_ATTEMPTS = 5;
-  const RECONNECT_DELAY = 3000;
+  // WebSocket URL - only connect if user and token are available
+  const socketUrl = user && token ? `ws://localhost:8000/messages/ws?token=${token}` : null;
 
-  const connectWebSocket = useCallback(() => {
-    if (!user || !token) {
-      console.log('No user or token, skipping WebSocket connection');
-      return;
-    }
-
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      console.log('WebSocket already connected');
-      return;
-    }
-
-    try {
-      console.log('Connecting to WebSocket...');
-      const wsUrl = `ws://localhost:8000/messages/ws?token=${token}`;
-      wsRef.current = new WebSocket(wsUrl);
-
-      wsRef.current.onopen = () => {
-        console.log('WebSocket connected successfully');
-        setIsConnected(true);
-        setConnectionAttempts(0);
+  const {
+    sendMessage: wsSendMessage,
+    lastMessage,
+    readyState,
+    getWebSocket
+  } = useWebSocket(socketUrl, {
+    onOpen: () => {
+      console.log('WebSocket connected successfully');
+      if (!hasShownInitialToast) {
         toast.success('Connected to real-time messaging', { duration: 2000 });
-      };
+        setHasShownInitialToast(true);
+      }
+    },
+    onClose: (event) => {
+      console.log('WebSocket disconnected:', event.code, event.reason);
+    },
+    onError: (error) => {
+      console.error('WebSocket error:', error);
+      toast.error('WebSocket connection error');
+    },
+    shouldReconnect: (closeEvent) => {
+      // Reconnect unless it was a normal closure (1000) or unauthorized (4001)
+      return closeEvent.code !== 1000 && closeEvent.code !== 4001;
+    },
+    reconnectAttempts: 5,
+    reconnectInterval: 3000,
+  });
 
-      wsRef.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log('WebSocket message received:', data);
-          
-          // Notify all registered listeners
-          messageListeners.current.forEach(listener => {
-            try {
-              listener(data);
-            } catch (error) {
-              console.error('Error in message listener:', error);
-            }
-          });
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
-        }
-      };
-
-      wsRef.current.onclose = (event) => {
-        console.log('WebSocket disconnected:', event.code, event.reason);
-        setIsConnected(false);
+  // Handle incoming messages
+  useEffect(() => {
+    if (lastMessage !== null) {
+      try {
+        const data = JSON.parse(lastMessage.data);
+        console.log('WebSocket message received:', data);
         
-        // Auto-reconnect if not a normal closure and user is still authenticated
-        if (event.code !== 1000 && user && token && connectionAttempts < MAX_RECONNECT_ATTEMPTS) {
-          console.log(`Attempting to reconnect... (${connectionAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
-          setConnectionAttempts(prev => prev + 1);
-          
-          reconnectTimeoutRef.current = setTimeout(() => {
-            connectWebSocket();
-          }, RECONNECT_DELAY);
-        } else if (connectionAttempts >= MAX_RECONNECT_ATTEMPTS) {
-          toast.error('Lost connection to real-time messaging. Please refresh the page.');
-        }
-      };
-
-      wsRef.current.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setIsConnected(false);
-      };
-
-    } catch (error) {
-      console.error('Error creating WebSocket connection:', error);
-      setIsConnected(false);
+        // Notify all registered listeners
+        messageListeners.forEach(listener => {
+          try {
+            listener(data);
+          } catch (error) {
+            console.error('Error in message listener:', error);
+          }
+        });
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error, 'Raw data:', lastMessage.data);
+      }
     }
-  }, [user, token, connectionAttempts]);
-
-  const disconnectWebSocket = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-    
-    if (wsRef.current) {
-      console.log('Disconnecting WebSocket...');
-      wsRef.current.close(1000, 'User disconnected');
-      wsRef.current = null;
-    }
-    
-    setIsConnected(false);
-    setConnectionAttempts(0);
-    messageListeners.current.clear();
-  }, []);
+  }, [lastMessage, messageListeners]);
 
   const sendMessage = useCallback((message) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(message));
+    if (readyState === ReadyState.OPEN) {
+      wsSendMessage(JSON.stringify(message));
       return true;
     } else {
       console.warn('WebSocket not connected, cannot send message');
       return false;
     }
-  }, []);
+  }, [wsSendMessage, readyState]);
 
   const addMessageListener = useCallback((listener) => {
-    messageListeners.current.add(listener);
+    setMessageListeners(prev => new Set([...prev, listener]));
     
     // Return cleanup function
     return () => {
-      messageListeners.current.delete(listener);
+      setMessageListeners(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(listener);
+        return newSet;
+      });
     };
   }, []);
 
-  // Connect when user is authenticated
-  useEffect(() => {
-    if (user && token) {
-      connectWebSocket();
-    } else {
-      disconnectWebSocket();
-    }
+  // Connection status
+  const isConnected = readyState === ReadyState.OPEN;
 
-    return () => {
-      disconnectWebSocket();
-    };
-  }, [user, token, connectWebSocket, disconnectWebSocket]);
+  // Legacy methods for compatibility (these are handled automatically by the library now)
+  const connectWebSocket = useCallback(() => {
+    console.log('connectWebSocket called - handled automatically by react-use-websocket');
+  }, []);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      disconnectWebSocket();
-    };
-  }, [disconnectWebSocket]);
+  const disconnectWebSocket = useCallback(() => {
+    console.log('disconnectWebSocket called - handled automatically by react-use-websocket');
+  }, []);
 
   const value = {
     isConnected,
     sendMessage,
     addMessageListener,
-    connectWebSocket,
-    disconnectWebSocket
+    connectWebSocket, // Keep for compatibility
+    disconnectWebSocket, // Keep for compatibility
+    readyState, // Expose ready state for advanced usage
+    connectionStatus: {
+      [ReadyState.CONNECTING]: 'Connecting',
+      [ReadyState.OPEN]: 'Open',
+      [ReadyState.CLOSING]: 'Closing',
+      [ReadyState.CLOSED]: 'Closed',
+      [ReadyState.UNINSTANTIATED]: 'Uninstantiated',
+    }[readyState]
   };
 
   return (

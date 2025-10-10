@@ -25,6 +25,8 @@ const TicketDetail = () => {
   // WebSocket state
   const wsRef = useRef(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const intentionalDisconnect = useRef(false);
+  const lastConnectionAttempt = useRef(0);
   const [messagesLoaded, setMessagesLoaded] = useState(false);
   const messagesEndRef = useRef(null);
 
@@ -34,16 +36,18 @@ const TicketDetail = () => {
 
   useEffect(() => {
     // Connect WebSocket for real-time messaging
-    if (id) {
+    if (id && user?.id) {
       connectWebSocket();
     }
     
     return () => {
       if (wsRef.current) {
+        intentionalDisconnect.current = true;
         wsRef.current.close();
+        wsRef.current = null;
       }
     };
-  }, [id, user]);
+  }, [id, user?.id]); // Only reconnect when ticket ID or user ID changes
 
   useEffect(() => {
     scrollToBottom();
@@ -54,17 +58,48 @@ const TicketDetail = () => {
   };
 
   const connectWebSocket = () => {
+    // Prevent rapid reconnection attempts (cooldown period)
+    const now = Date.now();
+    if (now - lastConnectionAttempt.current < 1000) {
+      console.log('Connection attempt too soon, waiting...');
+      return;
+    }
+    lastConnectionAttempt.current = now;
+
     const token = localStorage.getItem('token');
     if (!token) {
       console.error('No authentication token found');
       return;
     }
 
-    const wsUrl = `ws://localhost:8000/messages/${id}?token=${token}`;
-    wsRef.current = new WebSocket(wsUrl);
+    // Prevent multiple connection attempts
+    if (wsRef.current) {
+      if (wsRef.current.readyState === WebSocket.CONNECTING) {
+        console.log('WebSocket already connecting, skipping duplicate connection');
+        return;
+      }
+      if (wsRef.current.readyState === WebSocket.OPEN) {
+        console.log('WebSocket already connected, skipping duplicate connection');
+        return;
+      }
+      
+      // Close existing connection only if it's closed or closing
+      console.log('Closing existing WebSocket connection');
+      intentionalDisconnect.current = true;
+      wsRef.current.close();
+      wsRef.current = null;
+      setWsConnected(false);
+    }
+
+    // Small delay to ensure previous connection is fully closed
+    setTimeout(() => {
+      const wsUrl = `ws://localhost:8000/messages/room/${id}?token=${token}`;
+      console.log('Creating new WebSocket connection to:', wsUrl);
+      intentionalDisconnect.current = false;
+      wsRef.current = new WebSocket(wsUrl);
 
     wsRef.current.onopen = () => {
-      console.log('WebSocket connected');
+      console.log('WebSocket connected to:', wsUrl);
       setWsConnected(true);
     };
 
@@ -92,6 +127,21 @@ const TicketDetail = () => {
             // Check if message already exists to avoid duplicates
             const exists = prev.find(msg => msg.id === newMsg.id);
             if (exists) return prev;
+            
+            // Replace optimistic message with real message if content and sender match
+            const optimisticIndex = prev.findIndex(msg => 
+              msg.id.toString().startsWith('temp-') && 
+              msg.content === newMsg.content && 
+              msg.sender?.id === newMsg.sender.id
+            );
+            
+            if (optimisticIndex !== -1) {
+              console.log('Replacing optimistic message with real message');
+              const updatedMessages = [...prev];
+              updatedMessages[optimisticIndex] = newMsg;
+              return updatedMessages;
+            }
+            
             return [...prev, newMsg];
           });
         } else if (messageData.type === 'user_joined') {
@@ -104,19 +154,31 @@ const TicketDetail = () => {
       }
     };
 
-    wsRef.current.onclose = () => {
-      console.log('WebSocket disconnected');
+    wsRef.current.onclose = (event) => {
+      console.log('WebSocket disconnected with code:', event.code, 'reason:', event.reason);
       setWsConnected(false);
-      // Attempt to reconnect after 3 seconds
+      
+      // Don't reconnect if it was intentional or duplicate connection
+      if (intentionalDisconnect.current || event.code === 1000) {
+        console.log('Intentional disconnect, not reconnecting');
+        intentionalDisconnect.current = false;
+        return;
+      }
+      
+      // Attempt to reconnect after 3 seconds for unexpected disconnections
+      console.log('Unexpected disconnect, reconnecting in 3 seconds...');
       setTimeout(() => {
-        connectWebSocket();
+        if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+          connectWebSocket();
+        }
       }, 3000);
     };
 
-    wsRef.current.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setWsConnected(false);
-    };
+      wsRef.current.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setWsConnected(false);
+      };
+    }, 100); // Close setTimeout with 100ms delay
   };
 
   const fetchTicketAndMessages = async () => {
@@ -154,10 +216,28 @@ const TicketDetail = () => {
       
       if (wsConnected && wsRef.current) {
         // Send via WebSocket for real-time messaging
+        console.log('Sending message via WebSocket:', { content: newMessage.trim() });
         const messageData = {
           content: newMessage.trim()
         };
         wsRef.current.send(JSON.stringify(messageData));
+        
+        // Add message optimistically to local state
+        const optimisticMsg = {
+          id: `temp-${Date.now()}`,
+          content: newMessage.trim(),
+          sender: {
+            id: user.id,
+            name: user.name,
+            role: user.role
+          },
+          sender_name: user.name,
+          timestamp: new Date().toISOString(),
+          created_at: new Date().toISOString()
+        };
+        
+        console.log('Adding optimistic message:', optimisticMsg);
+        setMessages(prev => [...prev, optimisticMsg]);
       } else {
         // Fallback to HTTP API
         await messageService.sendMessage({
@@ -315,38 +395,64 @@ const TicketDetail = () => {
           {canAccessMessages ? (
             <div className="bg-white shadow rounded-lg">
               <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900 flex items-center">
-                  <MessageSquare className="h-5 w-5 mr-2" />
-                  Messages ({messages.length})
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium text-gray-900 flex items-center">
+                    <MessageSquare className="h-5 w-5 mr-2" />
+                    Messages ({messages.length})
+                  </h3>
+                  <div className="flex items-center text-sm">
+                    <div className={`h-2 w-2 rounded-full mr-2 ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    <span className={wsConnected ? 'text-green-600' : 'text-red-600'}>
+                      {wsConnected ? 'Connected' : 'Disconnected'}
+                    </span>
+                  </div>
+                </div>
               </div>
               
-              <div className="p-6 space-y-4 max-h-96 overflow-y-auto">
+              <div className="p-4 space-y-3 max-h-96 overflow-y-auto bg-gray-50">
                 {messages.length > 0 ? (
-                  messages.map((message) => (
-                    <div key={message.id} className="flex space-x-3">
-                      <div className="flex-shrink-0">
-                        <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
-                          <span className="text-white text-sm font-medium">
-                            {(message.sender?.name || message.sender_name)?.charAt(0).toUpperCase() || 'U'}
-                          </span>
+                  messages.map((message) => {
+                    const isCurrentUser = message.sender?.id === user?.id || message.sender_id === user?.id;
+                    return (
+                      <div key={message.id} className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${
+                          isCurrentUser 
+                            ? 'bg-blue-600 text-white rounded-br-md' 
+                            : 'bg-white text-gray-900 rounded-bl-md border border-gray-200'
+                        }`}>
+                          {!isCurrentUser && (
+                            <div className="flex items-center mb-1">
+                              <div className="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center mr-2">
+                                <span className="text-gray-600 text-xs font-medium">
+                                  {(message.sender?.name || message.sender_name)?.charAt(0).toUpperCase() || 'U'}
+                                </span>
+                              </div>
+                              <span className="text-xs font-medium text-gray-700">
+                                {message.sender?.name || message.sender_name || 'Unknown User'}
+                              </span>
+                            </div>
+                          )}
+                          <p className={`text-sm ${isCurrentUser ? 'text-white' : 'text-gray-900'}`}>
+                            {message.content}
+                          </p>
+                          <p className={`text-xs mt-1 ${
+                            isCurrentUser ? 'text-blue-100' : 'text-gray-500'
+                          }`}>
+                            {new Date(message.created_at || message.timestamp).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
                         </div>
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-gray-900">
-                            {message.sender?.name || message.sender_name || 'Unknown User'}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {new Date(message.created_at || message.timestamp).toLocaleString()}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-sm text-gray-700">{message.content}</p>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
-                  <p className="text-gray-500 text-center py-4">No messages yet</p>
+                  <div className="text-center py-8">
+                    <MessageSquare className="mx-auto h-12 w-12 text-gray-400" />
+                    <p className="text-gray-500 mt-2">No messages yet</p>
+                    <p className="text-gray-400 text-sm">Start the conversation!</p>
+                  </div>
                 )}
                 <div ref={messagesEndRef} />
               </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, User, RefreshCw } from 'lucide-react';
-import { messageService } from '../services';
-import { useAuth } from '../context/AuthContext';
+import { messageService } from '../../services';
+import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-hot-toast';
 
 const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
@@ -17,6 +17,8 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
   const wsRef = useRef(null);
   const messagesEndRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
+  const intentionalDisconnect = useRef(false);
+  const lastConnectionAttempt = useRef(0);
 
   const MAX_RECONNECT_ATTEMPTS = 3;
   const RECONNECT_DELAY = 2000;
@@ -47,6 +49,14 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
   }, [ticketId]);
 
   const connectToTicketRoom = useCallback(() => {
+    // Prevent rapid reconnection attempts (cooldown period)
+    const now = Date.now();
+    if (now - lastConnectionAttempt.current < 1000) {
+      console.log('Connection attempt too soon, waiting...');
+      return;
+    }
+    lastConnectionAttempt.current = now;
+
     // Admins cannot connect to WebSocket - they have read-only access via HTTP
     if (user?.role === 'admin') {
       console.log('Admin users cannot join WebSocket ticket rooms - read-only access only');
@@ -82,6 +92,8 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
 
     // Close any existing connection before creating new one
     if (wsRef.current) {
+      console.log('Closing existing WebSocket connection before creating new one');
+      intentionalDisconnect.current = true;
       wsRef.current.close();
       wsRef.current = null;
     }
@@ -90,6 +102,7 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
       console.log(`Connecting to ticket room ${ticketId}...`);
       console.log('User role:', user?.role, 'User ID:', user?.id);
       const wsUrl = `ws://localhost:8000/messages/room/${ticketId}?token=${token}`;
+      intentionalDisconnect.current = false;
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
@@ -125,6 +138,21 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
                 console.log('Message already exists, skipping duplicate');
                 return prevMessages;
               }
+              
+              // Replace optimistic message with real message if content and sender match
+              const optimisticIndex = prevMessages.findIndex(msg => 
+                msg.id.toString().startsWith('temp-') && 
+                msg.content === newMsg.content && 
+                msg.sender?.id === newMsg.sender.id
+              );
+              
+              if (optimisticIndex !== -1) {
+                console.log('Replacing optimistic message with real message');
+                const updatedMessages = [...prevMessages];
+                updatedMessages[optimisticIndex] = newMsg;
+                return updatedMessages;
+              }
+              
               console.log('Adding new real-time message to state');
               return [...prevMessages, newMsg];
             });
@@ -141,6 +169,13 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
       wsRef.current.onclose = (event) => {
         console.log(`WebSocket disconnected from ticket room ${ticketId}:`, event.code, event.reason);
         setIsConnected(false);
+        
+        // Don't reconnect if it was intentional
+        if (intentionalDisconnect.current) {
+          console.log('Intentional disconnect, not reconnecting');
+          intentionalDisconnect.current = false;
+          return;
+        }
         
         // Only auto-reconnect for specific error codes and if not intentionally closed
         const shouldReconnect = event.code !== 1000 && // Not normal closure
@@ -174,7 +209,7 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
       console.error('Error creating WebSocket connection to ticket room:', error);
       setIsConnected(false);
     }
-  }, [ticketId, user?.id, token, ticket]); // Add ticket to dependencies
+  }, [ticketId, user?.id, user?.role, token]); // Stable dependencies only
 
   const disconnectFromTicketRoom = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -184,6 +219,7 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
     
     if (wsRef.current) {
       console.log(`Disconnecting from ticket room ${ticketId}...`);
+      intentionalDisconnect.current = true;
       wsRef.current.close(1000, 'Component unmounting');
       wsRef.current = null;
     }
@@ -233,14 +269,14 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
     return () => {
       disconnectFromTicketRoom();
     };
-  }, [ticketId, user, token, connectToTicketRoom, disconnectFromTicketRoom]);
+  }, [ticketId, user?.id, user?.role, token]); // Only reconnect when stable values change
 
   useEffect(() => {
     // Auto-scroll to bottom when new messages arrive
     if (messages.length > 0) {
       scrollToBottom();
     }
-  }, [messages.length]); // Only scroll when message count changes
+  }, [messages]); // Scroll when messages array changes
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -276,9 +312,27 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
       if (user?.role === 'agent' || user?.role === 'user') {
         // Try WebSocket first if connected
         if (wsRef.current?.readyState === WebSocket.OPEN) {
+          console.log('Sending message via WebSocket (admin):', { content: messageContent });
           wsRef.current.send(JSON.stringify({
             content: messageContent
           }));
+          
+          // Add message optimistically to local state
+          const optimisticMsg = {
+            id: `temp-${Date.now()}`,
+            content: messageContent,
+            sender: {
+              id: user.id,
+              name: user.name,
+              role: user.role
+            },
+            sender_name: user.name,
+            timestamp: new Date().toISOString(),
+            created_at: new Date().toISOString()
+          };
+          
+          console.log('Adding optimistic message (admin):', optimisticMsg);
+          setMessages(prevMessages => [...prevMessages, optimisticMsg]);
           setNewMessage('');
         } else {
           // Fallback to HTTP if WebSocket is not connected
@@ -314,8 +368,15 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
     }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString();
+  const formatDate = (dateString, timeOnly = false) => {
+    const date = new Date(dateString);
+    if (timeOnly) {
+      return date.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+    return date.toLocaleString();
   };
 
   const canSendMessages = user?.role !== 'admin';
@@ -335,6 +396,12 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
             Messages ({messages.length})
           </h3>
           <div className="flex items-center space-x-3">
+            <div className="flex items-center text-sm">
+              <div className={`h-2 w-2 rounded-full mr-2 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <span className={isConnected ? 'text-green-600' : 'text-red-600'}>
+                {getConnectionStatus()}
+              </span>
+            </div>
             {user?.role === 'admin' && (
               <button
                 onClick={refreshMessages}
@@ -352,37 +419,52 @@ const MessageChat = ({ ticketId, ticket, initialMessages = [] }) => {
       
       <div className="p-6">
         {/* Messages List */}
-        <div className="space-y-4 mb-6 max-h-96 overflow-y-auto">
+        <div className="space-y-3 mb-6 max-h-96 overflow-y-auto bg-gray-50 p-4 rounded-lg">
           {loadingMessages ? (
             <div className="flex justify-center items-center py-8">
               <RefreshCw className="h-6 w-6 animate-spin text-blue-500" />
               <span className="ml-2 text-gray-500">Loading messages...</span>
             </div>
           ) : messages.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">No messages yet</p>
+            <div className="text-center py-8">
+              <User className="mx-auto h-12 w-12 text-gray-400" />
+              <p className="text-gray-500 mt-2">No messages yet</p>
+              <p className="text-gray-400 text-sm">Start the conversation!</p>
+            </div>
           ) : (
-            messages.map((message, index) => (
-              <div key={message.id || index} className="flex space-x-3">
-                <div className="flex-shrink-0">
-                  <div className="h-8 w-8 bg-gray-300 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-medium text-gray-700">
-                      {(message.sender?.name || message.sender_name)?.charAt(0) || 'U'}
-                    </span>
+            messages.map((message, index) => {
+              const isCurrentUser = message.sender?.id === user?.id || message.sender_id === user?.id;
+              return (
+                <div key={message.id || index} className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${
+                    isCurrentUser 
+                      ? 'bg-blue-600 text-white rounded-br-md' 
+                      : 'bg-white text-gray-900 rounded-bl-md border border-gray-200'
+                  }`}>
+                    {!isCurrentUser && (
+                      <div className="flex items-center mb-1">
+                        <div className="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center mr-2">
+                          <span className="text-gray-600 text-xs font-medium">
+                            {(message.sender?.name || message.sender_name)?.charAt(0).toUpperCase() || 'U'}
+                          </span>
+                        </div>
+                        <span className="text-xs font-medium text-gray-700">
+                          {message.sender?.name || message.sender_name || 'Unknown User'}
+                        </span>
+                      </div>
+                    )}
+                    <p className={`text-sm ${isCurrentUser ? 'text-white' : 'text-gray-900'}`}>
+                      {message.content}
+                    </p>
+                    <p className={`text-xs mt-1 ${
+                      isCurrentUser ? 'text-blue-100' : 'text-gray-500'
+                    }`}>
+                      {formatDate(message.timestamp || message.created_at, true)}
+                    </p>
                   </div>
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm font-medium text-gray-900">
-                      {message.sender?.name || message.sender_name || 'Unknown User'}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {formatDate(message.timestamp || message.created_at)}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-700 mt-1">{message.content}</p>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
           <div ref={messagesEndRef} />
         </div>

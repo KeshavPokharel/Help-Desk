@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, X, Check, CheckCheck } from 'lucide-react';
-import { notificationService } from '../services/notificationService';
-import { useAuth } from '../context/AuthContext';
+import { notificationService } from '../../services/notificationService';
+import { useAuth } from '../../context/AuthContext';
 
 const NotificationBell = () => {
   const [notifications, setNotifications] = useState([]);

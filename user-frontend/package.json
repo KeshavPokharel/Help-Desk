@@ -21,6 +21,7 @@
     "react-hook-form": "^7.62.0",
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.9.1",
+    "react-use-websocket": "^4.13.0",
     "tailwindcss": "^4.1.13",
     "yup": "^1.7.0"
   },

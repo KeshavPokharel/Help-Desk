@@ -4,7 +4,7 @@ import { ArrowLeft, RotateCcw, User, FileText, Plus, CheckCircle } from 'lucide-
 import { ticketService, transferService, messageService, userService } from '../services';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-hot-toast';
-import MessageChat from '../components/MessageChat';
+import MessageChat from '../components/ui/MessageChat';
 
 const TicketDetail = () => {
   const { id } = useParams();
