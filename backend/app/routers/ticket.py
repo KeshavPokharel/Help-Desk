@@ -286,7 +286,13 @@ def create_ticket_note(
     if current_user.role != UserRole.agent:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only agents can create notes")
     ticket_note = TicketNote(ticket_id=ticket_id, agent_id=current_user.id, note_content=note.note)
-    return ticket_ops.create_ticket_note(db, ticket_note)
+    result = ticket_ops.create_ticket_note(db, ticket_note)
+    
+    # Create notification for note added
+    from app.operations import notification as notification_ops
+    notification_ops.notify_note_added(db, db_ticket, current_user)
+    
+    return result
 
 
 @router.get("/{ticket_id}/notes", response_model=List[ticket_note_create.TicketNoteOut])

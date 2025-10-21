@@ -39,7 +39,7 @@ const NotificationBell = () => {
   const fetchStats = async () => {
     try {
       const stats = await notificationService.getNotificationStats();
-      setUnreadCount(stats.unread_count);
+      setUnreadCount(stats.unread_notifications);
     } catch (error) {
       console.error('Failed to fetch notification stats:', error);
     }

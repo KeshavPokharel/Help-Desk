@@ -440,6 +440,18 @@ def create_ticket_transfer_request(db: Session, db_ticket: ticket_model, from_ag
     db.add(transfer_request)
     db.commit()
     db.refresh(transfer_request)
+    
+    # Create notification for transfer request
+    try:
+        from_agent = db.query(User).filter(User.id == from_agent_id).first()
+        to_agent = db.query(User).filter(User.id == to_agent_id).first()
+        requester = db.query(User).filter(User.id == from_agent_id).first()  # Usually the same as from_agent
+        
+        if from_agent and to_agent and requester:
+            notification_ops.notify_ticket_transfer_requested(db, db_ticket, from_agent, to_agent, requester)
+    except Exception as e:
+        print(f"Notification error for transfer request: {e}")
+    
     return transfer_request
 
 def approve_ticket_transfer(db: Session, transfer_request: TicketTransfer):
@@ -524,6 +536,13 @@ def accept_reopen_ticket(db: Session, ticket: Ticket):
     ticket.status = TicketStatus.reopened
     db.commit()
     db.refresh(ticket)
+    
+    # Create notification for ticket reopened
+    try:
+        notification_ops.notify_ticket_reopened(db, ticket)
+    except Exception as e:
+        print(f"Notification error for ticket reopen: {e}")
+    
     return ticket
 
 def create_ticket_note(db: Session, ticket_note: TicketNote):
@@ -564,6 +583,18 @@ def admin_assign_ticket(db: Session, db_ticket: ticket_model, agent_id: Optional
     # Create notifications for assignment changes
     try:
         if old_agent_id != agent_id:
+            # Create update notification for assignment change
+            updater = db.query(User).filter(User.id == db_ticket.user_id).first()  # Default to ticket creator
+            if agent_id and old_agent_id:
+                changes = f"Ticket reassigned from one agent to another"
+            elif agent_id:
+                changes = f"Ticket assigned to an agent"
+            else:
+                changes = f"Ticket unassigned from agent"
+            
+            if updater:
+                notification_ops.notify_ticket_updated(db, db_ticket, updater, changes)
+            
             if agent_id:
                 # Notify new agent about assignment
                 notification_ops.notify_ticket_assigned(db, db_ticket, agent_id)
@@ -624,8 +655,14 @@ def close_ticket(db: Session, db_ticket: ticket_model, agent_id: int, resolution
     db.commit()
     db.refresh(db_ticket)
     
-    # Create notification for status change
+    # Create notifications
     try:
+        # Notify about ticket resolution
+        agent = db.query(User).filter(User.id == agent_id).first()
+        if agent:
+            notification_ops.notify_ticket_resolved(db, db_ticket, agent)
+        
+        # Also notify about status change
         notification_ops.notify_ticket_status_changed(db, db_ticket, "assigned", "closed")
     except Exception as e:
         # Don't fail closure if notifications fail

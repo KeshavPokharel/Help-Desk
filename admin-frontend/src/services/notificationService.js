@@ -21,7 +21,9 @@ export const notificationService = {
 
   // Mark specific notification as read
   markAsRead: async (notificationId) => {
+    console.log(`📡 Making PATCH request to /notifications/${notificationId}/read`);
     const response = await api.patch(`/notifications/${notificationId}/read`);
+    console.log('📡 Response received:', response);
     return response.data;
   },
 

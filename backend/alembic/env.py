@@ -3,6 +3,10 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 import sys
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 sys.path.append(os.path.join(sys.path[0], 'app'))  # Add app folder to path
 from app.database import Base  # import your declarative base
@@ -10,6 +14,13 @@ from app.database import Base  # import your declarative base
 config = context.config
 fileConfig(config.config_file_name)
 target_metadata = Base.metadata  # this tells Alembic about your models
+
+# Set the database URL from environment variable
+database_url = os.getenv(
+    "DATABASE_URL", 
+    "postgresql+psycopg2://postgres:jagdish@localhost:5566/helpdesk"
+)
+config.set_main_option("sqlalchemy.url", database_url)
 
 def run_migrations_offline():
     url = config.get_main_option("sqlalchemy.url")

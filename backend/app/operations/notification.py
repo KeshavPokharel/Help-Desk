@@ -168,3 +168,134 @@ def notify_note_added(db: Session, ticket: Ticket, agent: User) -> None:
             message=f"A new note was added to ticket #{ticket.ticket_uid} by {agent.name}"
         )
         create_notification(db, notification)
+
+def notify_ticket_transferred(db: Session, ticket: Ticket, old_agent_id: int, new_agent_id: int) -> None:
+    """Create notification when a ticket is transferred."""
+    # Get agent objects
+    old_agent = db.query(User).filter(User.id == old_agent_id).first()
+    new_agent = db.query(User).filter(User.id == new_agent_id).first()
+    
+    if not old_agent or not new_agent:
+        return
+    
+    # Notify the new agent
+    notification = NotificationCreate(
+        user_id=new_agent_id,
+        ticket_id=ticket.id,
+        type=NotificationType.TICKET_TRANSFER_APPROVED,
+        title="Ticket Transferred to You",
+        message=f"Ticket #{ticket.ticket_uid} has been transferred to you from {old_agent.name}"
+    )
+    create_notification(db, notification)
+    
+    # Notify the old agent
+    notification = NotificationCreate(
+        user_id=old_agent_id,
+        ticket_id=ticket.id,
+        type=NotificationType.TICKET_TRANSFER_APPROVED,
+        title="Ticket Transfer Completed",
+        message=f"Ticket #{ticket.ticket_uid} has been transferred from you to {new_agent.name}"
+    )
+    create_notification(db, notification)
+    
+    # Notify admins
+    admins = db.query(User).filter(User.role == 'admin').all()
+    for admin in admins:
+        if admin.id not in [old_agent_id, new_agent_id]:
+            notification = NotificationCreate(
+                user_id=admin.id,
+                ticket_id=ticket.id,
+                type=NotificationType.TICKET_TRANSFER_APPROVED,
+                title="Ticket Transferred",
+                message=f"Ticket #{ticket.ticket_uid} transferred from {old_agent.name} to {new_agent.name}"
+            )
+            create_notification(db, notification)
+
+def notify_ticket_unassigned(db: Session, ticket: Ticket, old_agent_id: int) -> None:
+    """Create notification when a ticket is unassigned."""
+    old_agent = db.query(User).filter(User.id == old_agent_id).first()
+    if not old_agent:
+        return
+    
+    # Notify the old agent
+    notification = NotificationCreate(
+        user_id=old_agent_id,
+        ticket_id=ticket.id,
+        type=NotificationType.TICKET_STATUS_CHANGED,
+        title="Ticket Unassigned",
+        message=f"Ticket #{ticket.ticket_uid} has been unassigned from you"
+    )
+    create_notification(db, notification)
+    
+    # Notify admins
+    admins = db.query(User).filter(User.role == 'admin').all()
+    for admin in admins:
+        notification = NotificationCreate(
+            user_id=admin.id,
+            ticket_id=ticket.id,
+            type=NotificationType.TICKET_STATUS_CHANGED,
+            title="Ticket Unassigned",
+            message=f"Ticket #{ticket.ticket_uid} has been unassigned from {old_agent.name}"
+        )
+        create_notification(db, notification)
+
+def notify_ticket_updated(db: Session, ticket: Ticket, updated_by: User, changes: str) -> None:
+    """Create notification when ticket details are updated."""
+    # Notify the ticket creator (if different from updater)
+    if ticket.user_id != updated_by.id:
+        notification = NotificationCreate(
+            user_id=ticket.user_id,
+            ticket_id=ticket.id,
+            type=NotificationType.TICKET_UPDATED,
+            title="Your Ticket Updated",
+            message=f"Your ticket #{ticket.ticket_uid} has been updated: {changes}"
+        )
+        create_notification(db, notification)
+    
+    # Notify assigned agent (if different from updater and creator)
+    if ticket.agent_id and ticket.agent_id != updated_by.id and ticket.agent_id != ticket.user_id:
+        notification = NotificationCreate(
+            user_id=ticket.agent_id,
+            ticket_id=ticket.id,
+            type=NotificationType.TICKET_UPDATED,
+            title="Assigned Ticket Updated",
+            message=f"Ticket #{ticket.ticket_uid} assigned to you has been updated: {changes}"
+        )
+        create_notification(db, notification)
+
+def notify_ticket_resolved(db: Session, ticket: Ticket, resolved_by: User) -> None:
+    """Create notification when a ticket is resolved."""
+    # Notify the ticket creator
+    notification = NotificationCreate(
+        user_id=ticket.user_id,
+        ticket_id=ticket.id,
+        type=NotificationType.TICKET_RESOLVED,
+        title="Your Ticket Resolved",
+        message=f"Your ticket #{ticket.ticket_uid}: {ticket.title} has been resolved by {resolved_by.name}"
+    )
+    create_notification(db, notification)
+
+def notify_ticket_transfer_requested(db: Session, ticket: Ticket, from_agent: User, to_agent: User, requested_by: User) -> None:
+    """Create notification when a ticket transfer is requested."""
+    # Notify the target agent
+    notification = NotificationCreate(
+        user_id=to_agent.id,
+        ticket_id=ticket.id,
+        type=NotificationType.TICKET_TRANSFER_REQUESTED,
+        title="Ticket Transfer Request",
+        message=f"Transfer request for ticket #{ticket.ticket_uid} from {from_agent.name}"
+    )
+    create_notification(db, notification)
+    
+    # Notify admins
+    admins = db.query(User).filter(User.role == 'admin').all()
+    for admin in admins:
+        if admin.id != requested_by.id:
+            notification = NotificationCreate(
+                user_id=admin.id,
+                ticket_id=ticket.id,
+                type=NotificationType.TICKET_TRANSFER_REQUESTED,
+                title="Ticket Transfer Request Pending",
+                message=f"Transfer request for ticket #{ticket.ticket_uid} from {from_agent.name} to {to_agent.name}"
+            )
+            create_notification(db, notification)
