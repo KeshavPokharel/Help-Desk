@@ -71,6 +71,7 @@ export const useWebSocket = (ticketId, user, token, ticket) => {
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
+        console.log('WebSocket connection opened successfully');
         setIsConnected(true);
         setConnectionAttempts(0);
         toast.success('Connected to real-time messaging', { duration: 2000 });
@@ -79,9 +80,12 @@ export const useWebSocket = (ticketId, user, token, ticket) => {
       wsRef.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('Raw WebSocket message received:', data);
+          console.log('Number of message listeners:', messageListeners.current.length);
           
           // Notify all listeners
-          messageListeners.current.forEach(listener => {
+          messageListeners.current.forEach((listener, index) => {
+            console.log(`Calling listener ${index}`);
             listener(data);
           });
         } catch (error) {
@@ -146,19 +150,29 @@ export const useWebSocket = (ticketId, user, token, ticket) => {
   }, []);
 
   const sendMessage = useCallback((content) => {
+    console.log('WebSocket sendMessage called with:', content);
+    console.log('WebSocket state:', wsRef.current?.readyState);
+    
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ content }));
+      const messageData = { content };
+      console.log('Sending WebSocket message:', messageData);
+      wsRef.current.send(JSON.stringify(messageData));
       return true;
     }
+    console.log('WebSocket not ready, state:', wsRef.current?.readyState);
     return false;
   }, []);
 
   const addMessageListener = useCallback((listener) => {
+    console.log('Adding message listener');
     messageListeners.current.push(listener);
+    console.log('Total listeners:', messageListeners.current.length);
     
     // Return cleanup function
     return () => {
+      console.log('Removing message listener');
       messageListeners.current = messageListeners.current.filter(l => l !== listener);
+      console.log('Remaining listeners:', messageListeners.current.length);
     };
   }, []);
 
