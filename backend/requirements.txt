@@ -1,14 +1,29 @@
-fastapi
-uvicorn
-sqlalchemy
-psycopg2-binary
-python-jose
-passlib
-pydantic
-python-multipart
-alembic
-websockets
-python-dotenv
-cloudinary
-pydantic[email]
-bcrypt
+# Core Framework
+fastapi>=0.104.1,<1.0.0
+uvicorn[standard]>=0.24.0,<1.0.0
+
+# Database
+sqlalchemy>=2.0.0,<3.0.0
+psycopg2-binary>=2.9.0,<3.0.0
+alembic>=1.12.0,<2.0.0
+
+# Authentication & Security
+python-jose[cryptography]>=3.3.0,<4.0.0
+passlib[bcrypt]>=1.7.4,<2.0.0
+bcrypt>=4.0.0,<5.0.0
+
+# Data Validation
+pydantic>=2.4.0,<3.0.0
+pydantic[email]>=2.4.0,<3.0.0
+
+# File Upload & WebSockets
+python-multipart>=0.0.6,<1.0.0
+websockets>=11.0.0,<12.0.0
+
+# Configuration & Cloud Storage
+python-dotenv>=1.0.0,<2.0.0
+cloudinary>=1.36.0,<2.0.0
+
+# Optional: Development tools (uncomment if needed)
+# pytest>=7.4.0,<8.0.0
+# httpx>=0.25.0,<1.0.0  # For testing async endpoints
