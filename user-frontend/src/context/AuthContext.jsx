@@ -71,33 +71,40 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const initializeAuth = async () => {
-      const token = localStorage.getItem('token');
-      
-      if (token) {
-        try {
-          // Fetch user profile from server to get current user info
-          const user = await authService.getProfile();
-          
-          // Allow only regular users (not admin or agent)
-          if (user.role === 'user') {
-            dispatch({
-              type: 'LOGIN_SUCCESS',
-              payload: { user, token },
-            });
-          } else {
-            // Admin and agent users should use admin panel
+      try {
+        const token = localStorage.getItem('token');
+        
+        if (token) {
+          try {
+            // Fetch user profile from server to get current user info
+            const user = await authService.getProfile();
+            
+            // Allow only regular users (not admin or agent)
+            if (user.role === 'user') {
+              dispatch({
+                type: 'LOGIN_SUCCESS',
+                payload: { user, token },
+              });
+            } else {
+              // Admin and agent users should use admin panel
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              dispatch({ type: 'LOGOUT' });
+            }
+          } catch (error) {
+            // Token is invalid or expired
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             dispatch({ type: 'LOGOUT' });
           }
-        } catch (error) {
-          // Token is invalid or expired
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
+        } else {
+          // No token found, user is not authenticated
           dispatch({ type: 'LOGOUT' });
         }
-      } else {
-        dispatch({ type: 'SET_LOADING', payload: false });
+      } catch (error) {
+        // Any unexpected error during initialization
+        console.error('Auth initialization error:', error);
+        dispatch({ type: 'LOGOUT' });
       }
     };
 
