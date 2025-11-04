@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Lock, Shield, CheckCircle, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { authService } from '../services';
+import { validatePassword } from '../utils/validation';
 
 const ChangePassword = () => {
   const [formData, setFormData] = useState({
@@ -65,14 +66,17 @@ const ChangePassword = () => {
       toast.error('Please enter your current password');
       return false;
     }
-    if (!formData.newPassword) {
-      toast.error('Please enter a new password');
+    
+    // Validate new password
+    const passwordResult = validatePassword(formData.newPassword, { 
+      minLength: 8,
+      fieldName: 'New password'
+    });
+    if (!passwordResult.isValid) {
+      toast.error(passwordResult.error);
       return false;
     }
-    if (formData.newPassword.length < 8) {
-      toast.error('New password must be at least 8 characters long');
-      return false;
-    }
+    
     if (formData.newPassword !== formData.confirmPassword) {
       toast.error('New passwords do not match');
       return false;

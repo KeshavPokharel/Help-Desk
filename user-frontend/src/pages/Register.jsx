@@ -13,6 +13,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { validateName, validateEmail, validatePassword } from '../utils/validation';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -34,26 +35,33 @@ const Register = () => {
   };
 
   const validateForm = () => {
-    if (!formData.name.trim()) {
-      toast.error('Full name is required');
+    // Validate name
+    const nameResult = validateName(formData.name, { fieldName: 'Full name' });
+    if (!nameResult.isValid) {
+      toast.error(nameResult.error);
       return false;
     }
-    if (!formData.email.trim()) {
-      toast.error('Email is required');
+    
+    // Validate email
+    const emailResult = validateEmail(formData.email);
+    if (!emailResult.isValid) {
+      toast.error(emailResult.error);
       return false;
     }
-    if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      toast.error('Please enter a valid email address');
+    
+    // Validate password
+    const passwordResult = validatePassword(formData.password, { minLength: 8 });
+    if (!passwordResult.isValid) {
+      toast.error(passwordResult.error);
       return false;
     }
-    if (formData.password.length < 6) {
-      toast.error('Password must be at least 6 characters long');
-      return false;
-    }
+    
+    // Check password confirmation
     if (formData.password !== formData.confirmPassword) {
       toast.error('Passwords do not match');
       return false;
     }
+    
     return true;
   };
 

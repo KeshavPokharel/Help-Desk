@@ -54,13 +54,20 @@ def update_user(db: Session, user_id: int, user: UserUpdate):
     db_user = get_user(db, user_id)
     if not db_user:
         return None
-    if user.name:
+    
+    # Update fields if provided
+    if user.name is not None:
         db_user.name = user.name
-    if user.password:
+    if user.email is not None:
+        db_user.email = user.email
+    if user.role is not None:
+        db_user.role = user.role
+    if user.password is not None:
         from app.core.security import get_password_hash
         db_user.password_hash = get_password_hash(user.password)
-    if user.profile_photo_url:
+    if user.profile_photo_url is not None:
         db_user.profile_photo_url = user.profile_photo_url
+    
     db.commit()
     db.refresh(db_user)
     return db_user

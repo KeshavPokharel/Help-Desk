@@ -19,9 +19,11 @@ class UserCreate(UserBase):
     password: str  # Plain password, will be hashed
 
 class UserUpdate(BaseModel):
-    name: Optional[str]
-    password: Optional[str]
-    profile_photo_url: Optional[str]
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    role: Optional[UserRole] = None
+    password: Optional[str] = None
+    profile_photo_url: Optional[str] = None
 
 class ChangePassword(BaseModel):
     current_password: str

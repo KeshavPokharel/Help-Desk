@@ -43,7 +43,7 @@ export const userService = {
 
   // Create user
   createUser: async (userData) => {
-    const response = await api.post('/users/', userData);
+    const response = await api.post('/users/add_user', userData);
     return response.data;
   },
 

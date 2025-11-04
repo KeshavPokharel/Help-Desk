@@ -102,13 +102,13 @@ def health_check():
         )
 
 # Include all routers
-app.include_router(auth, prefix="/auth", tags=["Authentication"])
-app.include_router(user.router, prefix="/api", tags=["Users"])
-app.include_router(ticket.router, prefix="/api", tags=["Tickets"])
-app.include_router(ticket_transfer.router, prefix="/api", tags=["Ticket Transfers"])
-app.include_router(category.router, prefix="/api", tags=["Categories"])
-app.include_router(message_ws.router, prefix="/api", tags=["Messages"])
-app.include_router(notification.router, prefix="/api", tags=["Notifications"])
+app.include_router(auth,  tags=["Authentication"])
+app.include_router(user.router, tags=["Users"])
+app.include_router(ticket.router, tags=["Tickets"])
+app.include_router(ticket_transfer.router, tags=["Ticket Transfers"])
+app.include_router(category.router, tags=["Categories"])
+app.include_router(message_ws.router, tags=["Messages"])
+app.include_router(notification.router, tags=["Notifications"])
 
 # Global exception handler
 @app.exception_handler(Exception)

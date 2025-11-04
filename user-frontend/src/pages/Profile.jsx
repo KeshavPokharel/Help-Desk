@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { userService } from '../services';
 import toast from 'react-hot-toast';
+import { validateName, validateEmail } from '../utils/validation';
 
 const Profile = () => {
   const { user, updateUser } = useAuth();
@@ -30,6 +31,21 @@ const Profile = () => {
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate name
+    const nameResult = validateName(profile.name, { fieldName: 'Name' });
+    if (!nameResult.isValid) {
+      toast.error(nameResult.error);
+      return;
+    }
+    
+    // Validate email
+    const emailResult = validateEmail(profile.email);
+    if (!emailResult.isValid) {
+      toast.error(emailResult.error);
+      return;
+    }
+    
     try {
       setLoading(true);
       const updatedUser = await userService.updateProfile({

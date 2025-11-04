@@ -57,42 +57,31 @@ const Categories = () => {
   }, []);
 
   // Category handlers
-  const handleCreateCategory = useCallback(async (e) => {
-    e.preventDefault();
-    if (!newCategory.name.trim()) {
-      toast.error('Category name is required');
-      return;
-    }
-
+  const handleCreateCategory = useCallback(async (formValues) => {
     try {
-      await categoryService.createCategory(newCategory);
+      await categoryService.createCategory(formValues);
       toast.success('Category created successfully');
-      setNewCategory(INITIAL_CATEGORY);
       setShowCreateModal(false);
       fetchCategories();
     } catch (error) {
       toast.error('Failed to create category');
       console.error('Error creating category:', error);
+      throw error; // Re-throw to let modal handle it
     }
-  }, [newCategory, fetchCategories]);
+  }, [fetchCategories]);
 
-  const handleEditCategory = useCallback(async (e) => {
-    e.preventDefault();
-    if (!editCategory.name.trim()) {
-      toast.error('Category name is required');
-      return;
-    }
-
+  const handleEditCategory = useCallback(async (formValues) => {
     try {
-      await categoryService.updateCategory(selectedCategory.id, editCategory);
+      await categoryService.updateCategory(selectedCategory.id, formValues);
       toast.success('Category updated successfully');
       handleCloseEditModal();
       fetchCategories();
     } catch (error) {
       toast.error('Failed to update category');
       console.error('Error updating category:', error);
+      throw error; // Re-throw to let modal handle it
     }
-  }, [editCategory, selectedCategory, fetchCategories]);
+  }, [selectedCategory, fetchCategories]);
 
   const handleDeleteCategory = useCallback(async (categoryId) => {
     if (!window.confirm('Are you sure you want to delete this category? This action cannot be undone.')) {
@@ -161,16 +150,6 @@ const Categories = () => {
     setSelectedCategory(null);
   }, []);
 
-  const handleNewCategoryChange = useCallback((e) => {
-    const { name, value } = e.target;
-    setNewCategory(prev => ({ ...prev, [name]: value }));
-  }, []);
-
-  const handleEditCategoryChange = useCallback((e) => {
-    const { name, value } = e.target;
-    setEditCategory(prev => ({ ...prev, [name]: value }));
-  }, []);
-
   const handleAgentSelect = useCallback((categoryId, agentId) => {
     setSelectedAgents(prev => ({ ...prev, [categoryId]: agentId }));
   }, []);
@@ -226,7 +205,6 @@ const Categories = () => {
         title="Create New Category"
         category={newCategory}
         onSubmit={handleCreateCategory}
-        onChange={handleNewCategoryChange}
         onClose={handleCloseCreateModal}
       />
 
@@ -236,7 +214,6 @@ const Categories = () => {
         title="Edit Category"
         category={editCategory}
         onSubmit={handleEditCategory}
-        onChange={handleEditCategoryChange}
         onClose={handleCloseEditModal}
       />
     </div>

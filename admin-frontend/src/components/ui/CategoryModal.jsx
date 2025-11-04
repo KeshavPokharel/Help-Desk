@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { FormField, TextInput, TextArea, SubmitButton, CancelButton } from './FormComponents';
+import { useFormValidation } from '../../hooks/useFormValidation';
 
 const CategoryModal = ({
   isOpen,
@@ -7,9 +9,74 @@ const CategoryModal = ({
   title,
   category,
   onSubmit,
-  onChange,
   onClose
 }) => {
+  // Validation schema
+  const validationSchema = {
+    name: {
+      type: 'text',
+      label: 'Category name',
+      options: {
+        required: true,
+        minLength: 2,
+        maxLength: 100
+      }
+    },
+    description: {
+      type: 'text',
+      label: 'Description',
+      options: {
+        required: false,
+        maxLength: 500
+      }
+    }
+  };
+
+  // Form validation hook
+  const {
+    values,
+    errors,
+    touched,
+    isSubmitting,
+    handleChange,
+    handleBlur,
+    handleSubmit,
+    resetForm,
+    setFieldValues,
+    setIsSubmitting
+  } = useFormValidation(
+    { name: '', description: '' },
+    validationSchema
+  );
+
+  // Update form values when category prop changes
+  useEffect(() => {
+    if (isOpen && category) {
+      setFieldValues({
+        name: category.name || '',
+        description: category.description || ''
+      });
+    }
+  }, [isOpen, category, setFieldValues]);
+
+  // Handle form submission
+  const onFormSubmit = handleSubmit(async (formValues) => {
+    try {
+      await onSubmit(formValues);
+      resetForm();
+      onClose();
+    } catch (error) {
+      setIsSubmitting(false);
+      // Error is handled by parent component
+    }
+  });
+
+  // Handle close
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -18,57 +85,54 @@ const CategoryModal = ({
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-bold text-gray-900">{title}</h3>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
         
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Category Name *
-            </label>
-            <input
-              type="text"
+        <form onSubmit={onFormSubmit} className="space-y-4">
+          <FormField
+            label="Category Name"
+            error={errors.name}
+            touched={touched.name}
+            required
+          >
+            <TextInput
               name="name"
-              value={category.name}
-              onChange={onChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              value={values.name}
+              onChange={handleChange}
+              onBlur={handleBlur}
               placeholder="Enter category name"
-              required
+              disabled={isSubmitting}
             />
-          </div>
+          </FormField>
           
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description
-            </label>
-            <textarea
+          <FormField
+            label="Description"
+            error={errors.description}
+            touched={touched.description}
+            hint="Optional description for the category"
+          >
+            <TextArea
               name="description"
-              value={category.description}
-              onChange={onChange}
+              value={values.description}
+              onChange={handleChange}
+              onBlur={handleBlur}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               placeholder="Enter category description"
+              disabled={isSubmitting}
             />
-          </div>
+          </FormField>
           
           <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md shadow-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
-            >
+            <CancelButton onClick={handleClose}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-            >
+            </CancelButton>
+            <SubmitButton isLoading={isSubmitting}>
               {mode === 'create' ? 'Create Category' : 'Update Category'}
-            </button>
+            </SubmitButton>
           </div>
         </form>
       </div>

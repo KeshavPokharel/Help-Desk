@@ -35,8 +35,6 @@ const Users = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
   const [showCreateAgentModal, setShowCreateAgentModal] = useState(false);
-  const [agentFormData, setAgentFormData] = useState(INITIAL_AGENT_FORM);
-  const [submitting, setSubmitting] = useState(false);
   
   const { user } = useAuth();
 
@@ -90,61 +88,26 @@ const Users = () => {
     }
   }, [fetchUsers]);
 
-  const validateAgentForm = useCallback(() => {
-    const { name, email, password } = agentFormData;
-    
-    if (!name?.trim()) return 'Name is required';
-    if (!email?.trim()) return 'Email is required';
-    if (!password) return 'Password is required';
-    if (password.length < 6) return 'Password must be at least 6 characters long';
-    
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return 'Please enter a valid email address';
-    
-    return null;
-  }, [agentFormData]);
-
-  const handleCreateAgent = useCallback(async (e) => {
-    e.preventDefault();
-    
-    const validationError = validateAgentForm();
-    if (validationError) {
-      toast.error(validationError);
-      return;
-    }
-
+  const handleCreateAgent = useCallback(async (formValues) => {
     try {
-      setSubmitting(true);
       const agentCreateData = {
-        ...agentFormData,
+        ...formValues,
         role: 'agent'
       };
       await userService.createAgent(agentCreateData);
       toast.success('Agent created successfully');
       setShowCreateAgentModal(false);
-      setAgentFormData(INITIAL_AGENT_FORM);
       fetchUsers();
     } catch (error) {
       const errorMessage = error.response?.data?.detail || 'Failed to create agent';
       toast.error(errorMessage);
       console.error('Error creating agent:', error);
-    } finally {
-      setSubmitting(false);
+      throw error; // Re-throw to let modal handle it
     }
-  }, [agentFormData, validateAgentForm, fetchUsers]);
-
-  const handleFormChange = useCallback((e) => {
-    const { name, value } = e.target;
-    setAgentFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  }, []);
+  }, [fetchUsers]);
 
   const closeModal = useCallback(() => {
     setShowCreateAgentModal(false);
-    setAgentFormData(INITIAL_AGENT_FORM);
   }, []);
 
   const getRoleConfig = useCallback((role) => {
@@ -239,9 +202,6 @@ const Users = () => {
         isOpen={showCreateAgentModal}
         onClose={closeModal}
         onSubmit={handleCreateAgent}
-        formData={agentFormData}
-        onChange={handleFormChange}
-        submitting={submitting}
       />
     </div>
   );

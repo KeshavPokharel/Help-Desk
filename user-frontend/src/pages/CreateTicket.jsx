@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft, Send, AlertCircle } from 'lucide-react';
 import { ticketService, categoryService } from '../services';
+import { validateTicketTitle, validateTicketDescription } from '../utils/validation';
 import toast from 'react-hot-toast';
 
 const CreateTicket = () => {
@@ -128,14 +129,32 @@ const CreateTicket = () => {
                   minLength: {
                     value: 5,
                     message: 'Subject must be at least 5 characters long'
+                  },
+                  maxLength: {
+                    value: 200,
+                    message: 'Subject must not exceed 200 characters'
+                  },
+                  validate: (value) => {
+                    const result = validateTicketTitle(value, {
+                      minLength: 5,
+                      maxLength: 200,
+                      fieldName: 'Subject'
+                    });
+                    return result.isValid || result.error;
                   }
                 })}
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 placeholder="Brief description of your issue"
               />
               {errors.subject && (
-                <p className="mt-1 text-sm text-red-600">{errors.subject.message}</p>
+                <div className="mt-1 flex items-center text-sm text-red-600">
+                  <AlertCircle className="h-4 w-4 mr-1 flex-shrink-0" />
+                  <span>{errors.subject.message}</span>
+                </div>
               )}
+              <p className="mt-1 text-xs text-gray-500">
+                Enter a clear, descriptive subject with meaningful text
+              </p>
             </div>
 
             {/* Category */}
@@ -200,6 +219,18 @@ const CreateTicket = () => {
                   minLength: {
                     value: 10,
                     message: 'Description must be at least 10 characters long'
+                  },
+                  maxLength: {
+                    value: 5000,
+                    message: 'Description must not exceed 5000 characters'
+                  },
+                  validate: (value) => {
+                    const result = validateTicketDescription(value, {
+                      minLength: 10,
+                      maxLength: 5000,
+                      fieldName: 'Description'
+                    });
+                    return result.isValid || result.error;
                   }
                 })}
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -210,10 +241,13 @@ const CreateTicket = () => {
 - Steps to reproduce the issue (if applicable)"
               />
               {errors.description && (
-                <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>
+                <div className="mt-1 flex items-center text-sm text-red-600">
+                  <AlertCircle className="h-4 w-4 mr-1 flex-shrink-0" />
+                  <span>{errors.description.message}</span>
+                </div>
               )}
               <p className="mt-1 text-sm text-gray-500">
-                The more details you provide, the faster we can help you
+                Provide detailed information with meaningful text to help us assist you better
               </p>
             </div>
           </div>

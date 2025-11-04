@@ -4,19 +4,29 @@ import { useForm } from 'react-hook-form';
 import { ArrowLeft, Save } from 'lucide-react';
 import { userService } from '../services';
 import toast from 'react-hot-toast';
+import { 
+  validateEmail, 
+  validatePassword, 
+  validateName,
+  calculatePasswordStrength 
+} from '../utils/validation';
 
 const UserForm = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
   const [loading, setLoading] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState(null);
 
   const {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm();
+
+  const password = watch('password', '');
 
   useEffect(() => {
     if (isEdit) {
@@ -24,13 +34,27 @@ const UserForm = () => {
     }
   }, [id, isEdit]);
 
+  useEffect(() => {
+    if (!isEdit && password) {
+      setPasswordStrength(calculatePasswordStrength(password));
+    }
+  }, [password, isEdit]);
+
   const fetchUser = async () => {
     try {
       setLoading(true);
       const user = await userService.getUser(id);
-      reset(user);
+      console.log('Fetched user data:', user); // Debug log
+      reset({
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        profile_photo_url: user.profile_photo_url || ''
+      });
     } catch (error) {
-      toast.error('Failed to fetch user details');
+      console.error('Error fetching user:', error); // Debug log
+      const errorMessage = error.response?.data?.detail || 'Failed to fetch user details';
+      toast.error(errorMessage);
       navigate('/users');
     } finally {
       setLoading(false);
@@ -39,8 +63,12 @@ const UserForm = () => {
 
   const onSubmit = async (data) => {
     try {
+      console.log('Submitting user data:', data, 'isEdit:', isEdit); // Debug log
+      
       if (isEdit) {
-        await userService.updateUser(id, data);
+        // Don't send password field when editing
+        const { password, ...updateData } = data;
+        await userService.updateUser(id, updateData);
         toast.success('User updated successfully');
       } else {
         await userService.createUser(data);
@@ -48,7 +76,32 @@ const UserForm = () => {
       }
       navigate('/users');
     } catch (error) {
-      const errorMessage = error.response?.data?.detail || 'Failed to save user';
+      console.error('Error saving user:', error); // Debug log
+      
+      // Handle different error response formats
+      let errorMessage = 'Failed to save user';
+      
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        
+        // Handle Pydantic validation errors (422)
+        if (errorData.detail && Array.isArray(errorData.detail)) {
+          // Extract validation error messages
+          errorMessage = errorData.detail.map(err => {
+            const field = err.loc ? err.loc.join('.') : 'field';
+            return `${field}: ${err.msg}`;
+          }).join(', ');
+        } 
+        // Handle string detail message
+        else if (typeof errorData.detail === 'string') {
+          errorMessage = errorData.detail;
+        }
+        // Handle generic error message
+        else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      }
+      
       toast.error(errorMessage);
     }
   };
@@ -95,7 +148,13 @@ const UserForm = () => {
               <input
                 type="text"
                 id="name"
-                {...register('name', { required: 'Name is required' })}
+                {...register('name', { 
+                  required: 'Name is required',
+                  validate: (value) => {
+                    const result = validateName(value);
+                    return result.isValid || result.error;
+                  }
+                })}
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               />
               {errors.name && (
@@ -113,10 +172,10 @@ const UserForm = () => {
                 id="email"
                 {...register('email', {
                   required: 'Email is required',
-                  pattern: {
-                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                    message: 'Invalid email address',
-                  },
+                  validate: (value) => {
+                    const result = validateEmail(value);
+                    return result.isValid || result.error;
+                  }
                 })}
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               />
@@ -136,15 +195,48 @@ const UserForm = () => {
                   id="password"
                   {...register('password', {
                     required: 'Password is required',
-                    minLength: {
-                      value: 6,
-                      message: 'Password must be at least 6 characters',
-                    },
+                    validate: (value) => {
+                      const result = validatePassword(value);
+                      return result.isValid || result.error;
+                    }
                   })}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
                 {errors.password && (
                   <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+                )}
+                {passwordStrength && (
+                  <div className="mt-2">
+                    <div className="flex gap-1">
+                      {[...Array(4)].map((_, i) => (
+                        <div
+                          key={i}
+                          className={`h-1 flex-1 rounded ${
+                            i < passwordStrength.score
+                              ? passwordStrength.score <= 1
+                                ? 'bg-red-500'
+                                : passwordStrength.score === 2
+                                ? 'bg-yellow-500'
+                                : passwordStrength.score === 3
+                                ? 'bg-blue-500'
+                                : 'bg-green-500'
+                              : 'bg-gray-200'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <p className={`text-xs mt-1 ${
+                      passwordStrength.score <= 1
+                        ? 'text-red-600'
+                        : passwordStrength.score === 2
+                        ? 'text-yellow-600'
+                        : passwordStrength.score === 3
+                        ? 'text-blue-600'
+                        : 'text-green-600'
+                    }`}>
+                      {passwordStrength.message}
+                    </p>
+                  </div>
                 )}
               </div>
             )}
