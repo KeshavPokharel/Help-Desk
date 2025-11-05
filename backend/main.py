@@ -18,6 +18,7 @@ from app.routers import ticket
 from app.routers import ticket_transfer
 from app.routers import category
 from app.routers import message_ws
+from app.routers import call_ws
 from app.routers import notification
 from app.core.seed_category import seed_categories
 
@@ -108,6 +109,7 @@ app.include_router(ticket.router, tags=["Tickets"])
 app.include_router(ticket_transfer.router, tags=["Ticket Transfers"])
 app.include_router(category.router, tags=["Categories"])
 app.include_router(message_ws.router, tags=["Messages"])
+app.include_router(call_ws.router, tags=["Calls"])
 app.include_router(notification.router, tags=["Notifications"])
 
 # Global exception handler

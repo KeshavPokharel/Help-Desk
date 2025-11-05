@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useCall } from '../context/CallContext';
 import MessageChat from '../components/ui/MessageChat';
 import TicketInfo from '../components/ticket/TicketInfo';
 import TicketActions from '../components/ticket/TicketActions';
@@ -10,6 +11,7 @@ import ReopenRequestAlert from '../components/ticket/ReopenRequestAlert';
 import PrivateNotes from '../components/ticket/PrivateNotes';
 import TransferModal from '../components/ticket/TransferModal';
 import CloseTicketModal from '../components/ticket/CloseTicketModal';
+import CallButton from '../components/call/CallButton';
 import { useTicketData } from '../hooks/useTicketData';
 import { useTicketActions } from '../hooks/useTicketActions';
 
@@ -17,6 +19,7 @@ const TicketDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { connectToTicket, disconnectFromTicket } = useCall();
   
   // Modal states
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -49,7 +52,18 @@ const TicketDetail = () => {
     }
   };
 
-
+  // Connect to ticket WebSocket for incoming calls
+  useEffect(() => {
+    if (id) {
+      console.log('Admin: Connecting to ticket for calls:', id);
+      connectToTicket(parseInt(id));
+      
+      return () => {
+        console.log('Admin: Disconnecting from ticket:', id);
+        disconnectFromTicket();
+      };
+    }
+  }, [id, connectToTicket, disconnectFromTicket]);
 
   if (loading) {
     return (
@@ -88,12 +102,22 @@ const TicketDetail = () => {
         </div>
         
         {/* Action Buttons */}
-        <TicketActions 
-          ticket={ticket}
-          user={user}
-          onTransferClick={() => setShowTransferModal(true)}
-          onCloseClick={() => setShowCloseModal(true)}
-        />
+        <div className="flex items-center space-x-3">
+          {/* Call Button - Only for agents on assigned tickets */}
+          {user?.role === 'agent' && ticket.agent_id === user.id && ticket.user && (
+            <CallButton 
+              ticket={ticket}
+              remoteUser={ticket.user}
+            />
+          )}
+          
+          <TicketActions 
+            ticket={ticket}
+            user={user}
+            onTransferClick={() => setShowTransferModal(true)}
+            onCloseClick={() => setShowCloseModal(true)}
+          />
+        </div>
       </div>
 
       {/* Ticket Information */}

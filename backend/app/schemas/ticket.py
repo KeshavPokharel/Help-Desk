@@ -25,6 +25,10 @@ class TicketTransferRequestCreate(BaseModel):
 class Ticket(TicketBase):
     id: int
     ticket_uid: str
+    user_id: int
+    agent_id: Optional[int] = None
+    category_id: int
+    subcategory_id: Optional[int] = None
     status: TicketStatus
     priority: TicketPriority
     created_at: datetime
@@ -94,6 +98,10 @@ class EnhancedDashboardStats(BaseModel):
 class TicketOut(TicketBase):
     id: int
     ticket_uid: str
+    user_id: int
+    agent_id: Optional[int] = None
+    category_id: int
+    subcategory_id: Optional[int] = None
     status: TicketStatus
     priority: TicketPriority
     created_at: datetime

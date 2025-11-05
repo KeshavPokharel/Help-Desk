@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Check - Help Desk</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .device-list {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .device-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: white;
+            border-left: 4px solid #4CAF50;
+            border-radius: 3px;
+        }
+        .no-devices {
+            border-left-color: #f44336;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Device Checker - Help Desk Calling Feature</h1>
+        
+        <p>This tool helps you check if your computer has the necessary devices (microphone and camera) for the calling feature.</p>
+        
+        <div>
+            <button id="checkBtn" onclick="checkDevices()">Check My Devices</button>
+            <button id="testBtn" onclick="testMicrophone()" disabled>Test Microphone</button>
+            <button id="testCamBtn" onclick="testCamera()" disabled>Test Camera</button>
+        </div>
+        
+        <div id="results"></div>
+        
+        <div style="margin-top: 30px; padding: 20px; background: #fff3cd; border-radius: 5px; border: 1px solid #ffeaa7;">
+            <h3 style="margin-top: 0;">💡 Common Solutions:</h3>
+            <ul>
+                <li><strong>Desktop PC with no devices:</strong> You need to buy a USB microphone, headset, or webcam</li>
+                <li><strong>Devices detected but can't access:</strong> Check browser permissions (click the lock/camera icon in address bar)</li>
+                <li><strong>No devices detected on laptop:</strong> Check Device Manager (Windows) or System Preferences (macOS)</li>
+                <li><strong>For testing only:</strong> You can use a laptop or phone to test the calling feature</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let stream = null;
+
+        async function checkDevices() {
+            const resultsDiv = document.getElementById('results');
+            const testBtn = document.getElementById('testBtn');
+            const testCamBtn = document.getElementById('testCamBtn');
+            
+            resultsDiv.innerHTML = '<div class="info">Checking devices...</div>';
+            
+            try {
+                // Check if API is supported
+                if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+                    resultsDiv.innerHTML = '<div class="error">❌ Your browser doesn\'t support device detection. Try Chrome, Edge, or Firefox.</div>';
+                    return;
+                }
+
+                // Get list of devices
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                
+                const audioInputs = devices.filter(device => device.kind === 'audioinput');
+                const videoInputs = devices.filter(device => device.kind === 'videoinput');
+                const audioOutputs = devices.filter(device => device.kind === 'audiooutput');
+                
+                let html = '<h2>Device Detection Results:</h2>';
+                
+                // Microphone check
+                if (audioInputs.length > 0) {
+                    html += '<div class="status success">✅ Microphone Found: ' + audioInputs.length + ' device(s)</div>';
+                    html += '<div class="device-list"><strong>Microphones:</strong>';
+                    audioInputs.forEach((device, index) => {
+                        html += '<div class="device-item">🎤 ' + (device.label || 'Microphone ' + (index + 1)) + '</div>';
+                    });
+                    html += '</div>';
+                    testBtn.disabled = false;
+                } else {
+                    html += '<div class="status error">❌ No Microphone Found</div>';
+                    html += '<div class="info">💡 <strong>Solution:</strong> You need to connect a USB microphone, headset, or webcam (which includes a mic).</div>';
+                    testBtn.disabled = true;
+                }
+                
+                // Camera check
+                if (videoInputs.length > 0) {
+                    html += '<div class="status success">✅ Camera Found: ' + videoInputs.length + ' device(s)</div>';
+                    html += '<div class="device-list"><strong>Cameras:</strong>';
+                    videoInputs.forEach((device, index) => {
+                        html += '<div class="device-item">📷 ' + (device.label || 'Camera ' + (index + 1)) + '</div>';
+                    });
+                    html += '</div>';
+                    testCamBtn.disabled = false;
+                } else {
+                    html += '<div class="status error">❌ No Camera Found</div>';
+                    html += '<div class="info">💡 <strong>Note:</strong> Camera is optional. Audio calls will work with just a microphone.</div>';
+                    testCamBtn.disabled = true;
+                }
+                
+                // Speakers check
+                if (audioOutputs.length > 0) {
+                    html += '<div class="status success">✅ Speakers/Headphones Found: ' + audioOutputs.length + ' device(s)</div>';
+                } else {
+                    html += '<div class="status error">⚠️ No Audio Output Found (You won\'t be able to hear the other person)</div>';
+                }
+                
+                // Summary
+                if (audioInputs.length > 0) {
+                    html += '<div class="status success"><strong>✨ Great! You can make calls with this device.</strong></div>';
+                } else {
+                    html += '<div class="status error"><strong>❌ Cannot make calls - microphone required</strong><br><br>';
+                    html += '<strong>What to buy:</strong><br>';
+                    html += '• USB Microphone (e.g., Blue Yeti, Fifine K669) - $20-50<br>';
+                    html += '• USB Headset (e.g., Logitech H390, HyperX Cloud) - $25-60<br>';
+                    html += '• USB Webcam with mic (e.g., Logitech C270, C920) - $30-70<br>';
+                    html += '<br>Just plug it into a USB port and refresh this page!</div>';
+                }
+                
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultsDiv.innerHTML = '<div class="error">❌ Error checking devices: ' + error.message + '</div>';
+                console.error('Device check error:', error);
+            }
+        }
+
+        async function testMicrophone() {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                // Stop any existing stream
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                
+                resultsDiv.innerHTML += '<div class="info">🎤 Requesting microphone access... (Please click "Allow" if asked)</div>';
+                
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                
+                resultsDiv.innerHTML += '<div class="status success">✅ <strong>Microphone test successful!</strong><br>Your browser can access the microphone. You\'re ready to make audio calls!</div>';
+                
+                // Stop the stream after test
+                setTimeout(() => {
+                    if (stream) {
+                        stream.getTracks().forEach(track => track.stop());
+                        stream = null;
+                    }
+                }, 2000);
+                
+            } catch (error) {
+                let errorMsg = '❌ Microphone test failed: ';
+                if (error.name === 'NotAllowedError') {
+                    errorMsg += 'Permission denied. Click the lock icon in the address bar and allow microphone access.';
+                } else if (error.name === 'NotFoundError') {
+                    errorMsg += 'No microphone found. Please connect a microphone.';
+                } else {
+                    errorMsg += error.message;
+                }
+                resultsDiv.innerHTML += '<div class="status error">' + errorMsg + '</div>';
+            }
+        }
+
+        async function testCamera() {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                // Stop any existing stream
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                
+                resultsDiv.innerHTML += '<div class="info">📷 Requesting camera access... (Please click "Allow" if asked)</div>';
+                
+                stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+                
+                resultsDiv.innerHTML += '<div class="status success">✅ <strong>Camera test successful!</strong><br>Your browser can access the camera. You\'re ready to make video calls!</div>';
+                
+                // Stop the stream after test
+                setTimeout(() => {
+                    if (stream) {
+                        stream.getTracks().forEach(track => track.stop());
+                        stream = null;
+                    }
+                }, 2000);
+                
+            } catch (error) {
+                let errorMsg = '❌ Camera test failed: ';
+                if (error.name === 'NotAllowedError') {
+                    errorMsg += 'Permission denied. Click the lock icon in the address bar and allow camera access.';
+                } else if (error.name === 'NotFoundError') {
+                    errorMsg += 'No camera found. Audio-only calls will still work if you have a microphone.';
+                } else {
+                    errorMsg += error.message;
+                }
+                resultsDiv.innerHTML += '<div class="status error">' + errorMsg + '</div>';
+            }
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
+</body>
+</html>

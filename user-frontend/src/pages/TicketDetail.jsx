@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useCall } from '../context/CallContext';
 import { useTicketData } from '../hooks/useTicketData';
 import { useMessaging } from '../hooks/useMessaging';
 import { useTicketActions } from '../hooks/useTicketActions';
@@ -10,11 +11,13 @@ import MessagingSection from '../components/ticket/MessagingSection';
 import TicketSidebar from '../components/ticket/TicketSidebar';
 import TransferModal from '../components/ticket/TransferModal';
 import ReopenModal from '../components/ticket/ReopenModal';
+import CallButton from '../components/call/CallButton';
 
 const TicketDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { connectToTicket, disconnectFromTicket } = useCall();
 
   // Custom hooks
   const { ticket, loading, transfers, setTransfers, refreshTicket } = useTicketData(id);
@@ -54,6 +57,19 @@ const TicketDetail = () => {
     }
   }, [canAccessMessages, messagesLoaded, loadMessages]);
 
+  // Connect to ticket WebSocket for incoming calls
+  useEffect(() => {
+    if (id) {
+      console.log('User: Connecting to ticket for calls:', id);
+      connectToTicket(parseInt(id));
+      
+      return () => {
+        console.log('User: Disconnecting from ticket:', id);
+        disconnectFromTicket();
+      };
+    }
+  }, [id, connectToTicket, disconnectFromTicket]);
+
   // User permission checks
   const isAssignedAgent = user?.role === 'agent' && ticket?.agent?.id === user?.id;
   const isTicketCreator = user?.role === 'user' && (
@@ -81,11 +97,25 @@ const TicketDetail = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <TicketHeader
-        ticket={ticket}
-        onNavigateBack={() => navigate('/dashboard/tickets')}
-      />
+      {/* Header with Call Button */}
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <TicketHeader
+            ticket={ticket}
+            onNavigateBack={() => navigate('/dashboard/tickets')}
+          />
+        </div>
+        
+        {/* Call Button - Only for users on assigned tickets */}
+        {user?.role === 'user' && ticket.agent_id && ticket.agent && (
+          <div className="ml-4">
+            <CallButton 
+              ticket={ticket}
+              remoteUser={ticket.agent}
+            />
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}

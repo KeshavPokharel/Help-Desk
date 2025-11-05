@@ -4,3 +4,4 @@ from .category import router as category_router
 from .ticket_transfer import router as ticket_transfer_router
 from .message_ws import router as message_ws_router
 from .notification import router as notification_router
+from .call_ws import router as call_ws_router

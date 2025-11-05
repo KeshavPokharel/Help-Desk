@@ -29,6 +29,14 @@ Help Desk System/
 - **Responsive Design**: TailwindCSS for modern, mobile-first UI
 - **Real-time Updates**: Live notifications and message updates
 - **Role-based Access Control**: Granular permissions system
+- **WebRTC Video/Audio Calling**: Real-time voice and video calls between users and agents
+  - Audio and video call support
+  - In-call controls (mute, video toggle, end call)
+  - Incoming call notifications with accept/reject options
+  - Dynamic video upgrade (start audio-only, switch to video mid-call)
+  - Call duration timer
+  - Picture-in-picture local video preview
+  - Minimizable call modal
 
 ## 🛠️ Technology Stack
 
@@ -39,7 +47,7 @@ Help Desk System/
 - **Migrations**: Alembic
 - **Authentication**: JWT (python-jose)
 - **Password Hashing**: bcrypt/passlib
-- **WebSockets**: FastAPI WebSocket support
+- **WebSockets**: FastAPI WebSocket support (messaging + WebRTC signaling)
 - **File Storage**: Cloudinary
 - **Server**: Uvicorn
 
@@ -52,6 +60,8 @@ Help Desk System/
 - **Routing**: React Router DOM 7.9.1
 - **Forms**: React Hook Form + Yup validation
 - **HTTP Client**: Axios
+- **WebSockets**: react-use-websocket
+- **WebRTC**: Native RTCPeerConnection API for peer-to-peer calls
 - **Icons**: Lucide React
 - **Notifications**: React Hot Toast
 
@@ -238,6 +248,16 @@ POST /tickets/{id}/reopen # Reopen ticket
 
 ### Messaging
 ```
+WS   /messages/ws/{ticket_id}  # Real-time chat WebSocket
+GET  /messages/{ticket_id}     # Get message history
+```
+
+### WebRTC Calling
+```
+WS   /calls/ws/{ticket_id}     # WebRTC signaling WebSocket
+                                # Supports: offer, answer, ICE candidates
+                                # Peer connection notifications
+```
 GET  /messages/{ticket_id}     # Get ticket messages
 POST /messages/               # Send message
 WS   /messages/ws             # WebSocket connection
@@ -253,14 +273,62 @@ GET  /tickets/stats/enhanced  # Dashboard statistics
 The system uses WebSocket connections for real-time features:
 
 ### Connection Endpoints
-- **Global**: `ws://localhost:8000/messages/ws?token=<jwt_token>`
-- **Ticket-specific**: `ws://localhost:8000/messages/room/{ticket_id}?token=<jwt_token>`
+- **Messaging**: `ws://localhost:8000/messages/ws?token=<jwt_token>`
+- **Ticket Chat**: `ws://localhost:8000/messages/room/{ticket_id}?token=<jwt_token>`
+- **WebRTC Signaling**: `ws://localhost:8000/calls/ws/{ticket_id}?token=<jwt_token>`
 
 ### Message Types
+
+#### Messaging WebSocket
 - **message**: New chat message
 - **user_joined**: User joined chat
 - **user_left**: User left chat
 - **notification**: System notifications
+
+#### WebRTC Signaling WebSocket
+- **connected**: WebSocket connection established
+- **peer-connected**: Another user joined the call
+- **peer-disconnected**: Another user left the call
+- **offer**: WebRTC offer (SDP)
+- **answer**: WebRTC answer (SDP)
+- **ice-candidate**: ICE candidate for NAT traversal
+- **call-rejected**: Call was declined by recipient
+
+## 📞 WebRTC Calling Feature
+
+### How It Works
+1. **Call Initiation**: User/Agent clicks call button on ticket detail page
+2. **WebSocket Connection**: Establishes signaling channel via WebSocket
+3. **Incoming Call**: Recipient sees modal with accept/decline options
+4. **WebRTC Handshake**: Exchange of SDP offers/answers and ICE candidates
+5. **P2P Connection**: Direct peer-to-peer audio/video stream
+6. **In-Call Controls**: Mute, video toggle, end call, minimize modal
+
+### Requirements
+- **Microphone**: Required for audio calls
+- **Camera**: Optional for video calls
+- **Browser Support**: Modern browsers with WebRTC support (Chrome, Firefox, Edge, Safari)
+- **Network**: STUN server for NAT traversal (using Google's public STUN servers)
+
+### Features
+- ✅ Audio-only calls
+- ✅ Video calls with camera
+- ✅ Mid-call video upgrade (start audio, enable video later)
+- ✅ Mute/unmute microphone
+- ✅ Enable/disable video
+- ✅ Call duration timer (MM:SS format)
+- ✅ Incoming call notifications
+- ✅ Accept/reject incoming calls
+- ✅ Minimizable call window
+- ✅ Picture-in-picture local video
+
+### Technical Details
+- **Signaling**: WebSocket-based signaling server
+- **NAT Traversal**: STUN servers (stun.l.google.com:19302)
+- **Media Constraints**: Audio always enabled, video optional
+- **Peer Connection**: RTCPeerConnection API
+- **Audio/Video Tracks**: MediaStream API
+
 
 ## 📊 Chart & Analytics Features
 
@@ -346,6 +414,17 @@ Create Dockerfiles for each service and use Docker Compose for orchestration.
 - Verify all dependencies are installed
 
 **WebSocket connection fails**
+- Verify backend is running on correct port
+- Check CORS configuration
+- Ensure JWT token is valid
+- For WebRTC calls: Check browser permissions for microphone/camera
+
+**WebRTC calling issues**
+- **No microphone found**: Connect a USB microphone or headset
+- **Permission denied**: Allow browser access to microphone/camera in settings
+- **Connection fails**: Check firewall settings, ensure STUN server is accessible
+- **No incoming call notification**: Verify both users are viewing the same ticket
+- **Video not working**: Check camera permissions and hardware availability
 - Check backend server is running
 - Verify JWT token is valid
 - Check browser console for errors
@@ -393,6 +472,21 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 For support and questions:
 - Check the troubleshooting section
 - Review API documentation
+- Check the following documentation files:
+  - `CALLING_FEATURE.md` - WebRTC calling implementation details
+  - `INCOMING_CALL_FEATURE.md` - Incoming call notifications guide
+  - `CAMERA_PERMISSION_GUIDE.md` - Hardware and permission setup
+  - `SETUP.md` - Detailed setup instructions
+  - `TECHNICAL.md` - Technical architecture details
+
+## 📚 Additional Documentation
+
+- **CALLING_FEATURE.md**: Complete WebRTC calling feature documentation
+- **INCOMING_CALL_FEATURE.md**: Messenger-like incoming call system
+- **INCOMING_CALL_FIX.md**: WebSocket connection troubleshooting
+- **CAMERA_PERMISSION_GUIDE.md**: Microphone/camera setup guide
+- **CALL_BUTTON_DEBUG.md**: Call button visibility debugging
+- **device-checker.html**: Standalone device testing tool
 - Create an issue in the repository
 
 ## 🔄 Version History

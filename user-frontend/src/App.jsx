@@ -3,11 +3,14 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { CallProvider } from './context/CallContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/layout/Layout';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import CallModal from './components/call/CallModal';
+import IncomingCallModal from './components/call/IncomingCallModal';
 
 // Lazy load heavy components
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -66,89 +69,93 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Router>
-          <div className="App">
-            <Routes>
-              {/* Root route - Landing for non-authenticated, redirect to dashboard for authenticated */}
-              <Route path="/" element={<RootRoute />} />
-              
-              {/* Public Routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              
-              {/* Protected Routes */}
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute>
-                    <Layout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route 
-                  index 
+        <CallProvider>
+          <Router>
+            <div className="App">
+              <Routes>
+                {/* Root route - Landing for non-authenticated, redirect to dashboard for authenticated */}
+                <Route path="/" element={<RootRoute />} />
+                
+                {/* Public Routes */}
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                
+                {/* Protected Routes */}
+                <Route
+                  path="/dashboard"
                   element={
-                    <Suspense fallback={<LoadingSpinner />}>
-                      <Dashboard />
-                    </Suspense>
-                  } 
-                />
-                <Route 
-                  path="tickets" 
-                  element={
-                    <Suspense fallback={<LoadingSpinner />}>
-                      <Tickets />
-                    </Suspense>
-                  } 
-                />
-                <Route 
-                  path="tickets/create" 
-                  element={
-                    <Suspense fallback={<LoadingSpinner />}>
-                      <CreateTicket />
-                    </Suspense>
-                  } 
-                />
-                <Route 
-                  path="tickets/:id" 
-                  element={
-                    <Suspense fallback={<LoadingSpinner />}>
-                      <TicketDetail />
-                    </Suspense>
-                  } 
-                />
-                <Route 
-                  path="messages" 
-                  element={
-                    <Suspense fallback={<LoadingSpinner />}>
-                      <Messages />
-                    </Suspense>
-                  } 
-                />
-                <Route 
-                  path="profile" 
-                  element={
-                    <Suspense fallback={<LoadingSpinner />}>
-                      <Profile />
-                    </Suspense>
-                  } 
-                />
-                <Route 
-                  path="change-password" 
-                  element={
-                    <Suspense fallback={<LoadingSpinner />}>
-                      <ChangePassword />
-                    </Suspense>
-                  } 
-                />
-              </Route>
-              
-              {/* Catch all - redirect to root */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-            <Toaster position="top-right" />
-          </div>
-        </Router>
+                    <ProtectedRoute>
+                      <Layout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route 
+                    index 
+                    element={
+                      <Suspense fallback={<LoadingSpinner />}>
+                        <Dashboard />
+                      </Suspense>
+                    } 
+                  />
+                  <Route 
+                    path="tickets" 
+                    element={
+                      <Suspense fallback={<LoadingSpinner />}>
+                        <Tickets />
+                      </Suspense>
+                    } 
+                  />
+                  <Route 
+                    path="tickets/create" 
+                    element={
+                      <Suspense fallback={<LoadingSpinner />}>
+                        <CreateTicket />
+                      </Suspense>
+                    } 
+                  />
+                  <Route 
+                    path="tickets/:id" 
+                    element={
+                      <Suspense fallback={<LoadingSpinner />}>
+                        <TicketDetail />
+                      </Suspense>
+                    } 
+                  />
+                  <Route 
+                    path="messages" 
+                    element={
+                      <Suspense fallback={<LoadingSpinner />}>
+                        <Messages />
+                      </Suspense>
+                    } 
+                  />
+                  <Route 
+                    path="profile" 
+                    element={
+                      <Suspense fallback={<LoadingSpinner />}>
+                        <Profile />
+                      </Suspense>
+                    } 
+                  />
+                  <Route 
+                    path="change-password" 
+                    element={
+                      <Suspense fallback={<LoadingSpinner />}>
+                        <ChangePassword />
+                      </Suspense>
+                    } 
+                  />
+                </Route>
+                
+                {/* Catch all - redirect to root */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+              <Toaster position="top-right" />
+              <CallModal />
+              <IncomingCallModal />
+            </div>
+          </Router>
+        </CallProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
